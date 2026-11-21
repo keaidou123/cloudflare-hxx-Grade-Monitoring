@@ -1,0 +1,32 @@
+# 慧学星成绩单监控 —— Cloudflare Worker 配置
+# 部署前必须替换：database_id（wrangler d1 create 的输出）
+name = "hxxai-report-watch"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# 免费版也可以开；日志在 dashboard 的 Workers Logs 里看
+[observability]
+enabled = true
+
+[vars]
+# 上游站点（仅主机名，不含尾部斜杠）
+UPSTREAM_ORIGIN = "https://c.hxxai.com"
+# 每页条数（站点默认 15，这里放大以便一次抓全）
+POLL_PAGE_SIZE = "50"
+# 最多翻几页（防止考试数量增长后拖长单次执行）
+MAX_POLL_PAGES = "2"
+# 登录接口的 loginType（登录页 myUserInfo.loginType 默认 0）
+LOGIN_TYPE = "0"
+# 成绩单列表的筛选参数，0 = 全部
+SYS_COURSE_ID = "0"
+SYS_GRADE_ID = "0"
+SYS_EXAM_TYPE_ID = "0"
+
+# 定时触发：Cron 最小粒度 1 分钟。*/5 = 每 5 分钟一次
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hxxai_report_watch"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
