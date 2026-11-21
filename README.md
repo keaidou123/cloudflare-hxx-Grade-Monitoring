@@ -33,7 +33,7 @@ DEPLOY.md / DEPLOY.txt 部署教程
 1. 建 D1 数据库 → 执行 schema.sql 与 4 个迁移
 2. 建 Worker → 粘贴 worker.js → 部署
 3. 绑定 D1，变量名必须是 DB
-4. 添加机密：HXXAI_USERNAME、HXXAI_PASSWORD、ADMIN_PASSWORD、SESSION_SECRET
+4. 添加变量：HXXAI_USERNAME / HXXAI_PASSWORD 用「文本」，ADMIN_PASSWORD / SESSION_SECRET 用「机密」
 5. 添加 Cron：*/5 * * * *
 6. 打开 https://你的域名/admin，点「立即检查」
 
