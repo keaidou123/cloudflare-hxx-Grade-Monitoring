@@ -2,6 +2,7 @@
   "name": "hxxai-report-watch",
   "version": "1.0.0",
   "private": true,
+  "license": "GPL-3.0-only",
   "type": "module",
   "description": "慧学星成绩单发布监控 + 密码保护的管理界面 (Cloudflare Worker + D1 + Cron)",
   "scripts": {
