@@ -95,12 +95,19 @@
 
 ## 3. 第一步：注册并登录 Cloudflare
 
-1. 打开 https://dash.cloudflare.com/sign-up
-2. 填邮箱、密码，点注册
-3. 去邮箱点验证链接
-4. 回到 https://dash.cloudflare.com 登录
+这一步是通用的账号注册，和本项目没关系 —— **本项目不再赘述**。
 
-登录后是一个有很多菜单的面板，左边一列是主要工作区。界面如果是英文，右上角可以切换语言。
+请二选一：
+
+- 上网搜索：`Cloudflare 注册教程` 或 `Cloudflare 创建账号 登录控制台`
+- 或者直接问 AI：「我要注册一个 Cloudflare 账号并登录控制台，我完全没用过，请给我一步步的教程」
+
+做完的标准只有两条：
+
+1. 能登录 https://dash.cloudflare.com
+2. 左侧菜单能看到 **「Workers 和 Pages」** 和 **「存储和数据库」** 这两项
+
+> 注册只要邮箱 + 密码，不用绑卡，全程免费。
 
 ---
 
@@ -281,27 +288,35 @@ Cloudflare 定时器最小粒度是 1 分钟，但不保证准点，晚 1～2 �
 ### 12.2 前提条件
 
 1. **你必须有一个域名**（阿里云、腾讯云、Namesilo、Cloudflare 自己买都行，一般几十块一年）
-2. 这个域名要**托管到 Cloudflare**（免费套餐就够，不用买任何付费产品）
+2. 这个域名要**托管到 Cloudflare**（免费套餐就够）。托管的具体操作见 12.3，那里会告诉你怎么搜/怎么问 AI
 3. 不需要 ICP 备案 —— Cloudflare 的节点在境外，未备案的域名也能解析使用；但请自行确认符合当地规定
 
-> 如果你还没有域名：可以在 Cloudflare 控制台左侧「域名注册 / Domain Registration」直接买，买完自动就在 Cloudflare 里，跳过 12.3。
+> 如果你还没有域名：可以在 Cloudflare 控制台左侧「域名注册 / Domain Registration」直接买，买完自动就在 Cloudflare 里，**可以跳过 12.3**。具体怎么买请搜 `Cloudflare 域名注册 购买 教程` 或直接问 AI（本项目不写这部分）。
 
-### 12.3 第一步：把域名加进 Cloudflare
+### 12.3 第一步：把域名托管到 Cloudflare
 
-1. 登录 https://dash.cloudflare.com
-2. 首页点「添加站点」（Add a site）
-3. 输入你的域名，比如 example.com（**不要带 www 或 http**）
-4. 套餐选 **Free**，点继续
-5. Cloudflare 会给你**两个 nameserver 地址**，形如：
-       ada.ns.cloudflare.com
-       bob.ns.cloudflare.com
-6. 打开你买域名的那个网站（阿里云/腾讯云/Namesilo…），找到「DNS 服务器 / 域名服务器」设置，
-   把这台域名的 NS **改成上面那两个**，保存
-7. 回到 Cloudflare，点「我已更新名称服务器」，然后**等**：
-   通常 10 分钟到 2 小时生效，最长 24 小时
-8. 当 Cloudflare 里这个域名的状态从 Pending 变成 **Active**，才算成功
+各家域名商（阿里云 / 腾讯云 / Namesilo / Cloudflare 自己）的界面完全不同，而且经常改版 —— **本项目不写点击步骤，请自行搜索或问 AI**。
 
-> 这一步只做一次。之后这个域名就归 Cloudflare 管了，以后加子域名、改解析都在 Cloudflare 里操作。
+搜索关键词（按你的域名商挑一个）：
+
+- `阿里云 域名 修改DNS服务器 Cloudflare`
+- `腾讯云 域名 修改DNS服务器 Cloudflare`
+- `Namesilo 域名 NS 改成 Cloudflare`
+- `Cloudflare 添加站点 更改名称服务器`
+
+不想搜就直接问 AI，把下面这段原样发过去：
+
+    我的域名是在【这里填你的域名商，例如阿里云】买的。
+    请给我一步一步的教程：怎样把这个域名托管到 Cloudflare
+    （添加站点 → 拿到两个 nameserver → 去域名商改成这两个 NS →
+    最后在 Cloudflare 看到 Active）。
+    我完全没用过，请写清楚每一步点哪里。
+
+验收标准（只要满足这条，中间怎么点的都无所谓）：
+
+1. Cloudflare 控制台首页能看到你的域名，状态是 **Active**（绿色）
+
+> 卡住的常见原因：NS 还没生效（等 10 分钟～24 小时），或域名商那边还留着旧记录。
 
 ### 12.4 第二步：把域名绑到 Worker
 
