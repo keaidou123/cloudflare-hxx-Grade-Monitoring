@@ -37,7 +37,7 @@ DEPLOY.md / DEPLOY.txt 部署教程
 5. 添加 Cron：*/5 * * * *
 6. 打开 https://你的域名/admin，点「立即检查」
 
-细节（每一步点哪里）都在 [DEPLOY.md](DEPLOY.md) 里。
+细节（每一步点哪里）都在 [DEPLOY.md](DEPLOY.md) 里；想换成自己的域名（更稳、更好记）见教程第 12 节「绑定自己的域名」。
 
 ## 页面与接口
 
