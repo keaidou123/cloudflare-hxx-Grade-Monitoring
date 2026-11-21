@@ -31,6 +31,55 @@
 
 ---
 
+0.5 第一步（真的第一步）：把项目下载到本地
+==============================================
+
+后面要在自己电脑上打开两个文件：**worker.js** 和 **schema.sql**。所以先把整个项目存到电脑里。
+
+方式一：下载压缩包（推荐，最省事）
+==================================
+
+点这个链接，会直接下载一个 zip 压缩包：
+
+    https://github.com/keaidou123/cloudflare-hxx-Grade-Monitoring/archive/refs/tags/v0.1.zip
+
+或者打开版本发布页，在页面最下方的 **Assets / Source code** 里点 **Download ZIP**：
+
+    https://github.com/keaidou123/cloudflare-hxx-Grade-Monitoring/releases/tag/v0.1
+
+下载完：
+
+1. 右键压缩包 → 解压到当前文件夹（不要直接双击在压缩包里打开，里面文件打不开）
+2. 解压出来是一个文件夹，名字类似 `cloudflare-hxx-Grade-Monitoring-0.1`（这串数字就是版本号，以后会有新的）
+3. 放哪都行，**路径里最好不要有空格**，例如 `D:\hxxai-watch`，避免个别工具出问题
+
+解开后你会看到这些文件，其中**前三个是这次要用的**：
+
+    worker.js            ← 主程序，等下要整份复制到 Cloudflare
+    schema.sql           ← 建表语句
+    migrations/          ← 4 个补充建表语句
+    DEPLOY.md / .txt     ← 就是你现在看的这份教程（可离线看）
+    README.md            ← 项目说明
+    src/  test/  package.json  ← 源码和测试，普通使用者不用管
+
+方式二：用 git 克隆（会用 git 的人）
+==============================================
+
+    git clone https://github.com/keaidou123/cloudflare-hxx-Grade-Monitoring.git
+
+方式三：只要 worker.js 这一个文件
+============================================
+
+如果你只想跳过其他文件、直接拿主程序：
+
+    https://raw.githubusercontent.com/keaidou123/cloudflare-hxx-Grade-Monitoring/v0.1/worker.js
+
+⚠️ 这个 raw 地址在国内经常打不开。打不开就用**方式一**的 zip，里面的 worker.js 一模一样。
+
+> 下载这一步做完，就不要再关掉这个文件夹了 —— 后面每一步都要回来复制里面的内容。
+
+---
+
 1. 开始前请准备好
 ====================
 
