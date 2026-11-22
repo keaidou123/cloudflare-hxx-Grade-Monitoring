@@ -1,11 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
 import { createD1 } from './d1shim.mjs';
 import { ensureSchema } from '../src/schema.js';
 
 const SCHEMA_OLD = fileURLToPath(new URL('../schema.sql', import.meta.url));
-const MIG = fileURLToPath(new URL('../migrate-007-accounts.sql', import.meta.url));
+const MIG = (() => {
+  const a = fileURLToPath(new URL('../migrate-007-accounts.sql', import.meta.url));
+  const b = fileURLToPath(new URL('../migrations/005-accounts.sql', import.meta.url));
+  return existsSync(a) ? a : b;
+})();
 
 const tables = (db) => db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all().results.map((r) => r.name).sort();
 // 注意：pragma_table_info(?) 不接受绑定参数，必须把表名拼进 SQL

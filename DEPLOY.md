@@ -9,15 +9,15 @@
 
 > 这一段是给"已经部署过、现在要升级"的人看的。第一次部署请往下看完整教程。
 
-**第 1 步：先跑 SQL（顺序不能反，代码依赖新表）**
+**第 1 步：数据库表结构 —— 新版已经自动化了**
 
-**首次部署**：D1 控制台 → Console → 粘贴 `install.sql` 全文 → 点 **Run 右侧小箭头 ▾** → 选 **「Run all in sequence」**。
-**已有部署要升级**：按顺序逐个跑 `migrations/` 里的脚本（001 → 005），每个同样用 Run all in sequence。
+新版 `worker.js` 每次部署后第一次收到请求，会自己把表建好、把缺的列补上（重复执行也不会报错、不会丢数据）。
+所以：**正常升级什么都不用做，直接做第 2 步。**
 
-**关键：用下拉里的「Run all in sequence」**
+需要手动跑 SQL 的只有两种情况：
 
-SQL 输入框右下角那个蓝色 **Run** 按钮**只执行光标所在的那一条**（跑完显示 `Executed 1/1`）。
-要一次跑完全部语句：点 **Run 右边的小箭头 ▾** → 在下拉里选 **「Run all in sequence」**（依次执行，遇到错误停止）。
+- 你想用命令行部署：`wrangler d1 execute hxxai_report_watch --remote --file=install.sql`
+- 手动跑的话，一定要用 **Run 右边的小箭头 ▾ → 「Run all in sequence」**；直接点蓝色 Run 只会执行光标所在的那一条（显示 `Executed 1/1`）。
 
 看到 `Executed N/N`（N 大于 1）才算全部执行完；只显示 `Executed 1/1` 就是只跑了一条。
 如果提示 `duplicate column name` 或 `table already exists`，说明已经跑过，跳过即可。
