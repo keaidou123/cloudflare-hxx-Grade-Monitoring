@@ -9,6 +9,9 @@ import { diffExams, EVENT_LABELS } from './diff.js';
 import { resolveExamTitle, resolveExamDate, isMultiSubject, summarizeDetail, summarizeCourseList, parseScoresFromHtml, parsePaperInfo, extractImageUrls, collectImageUrls, pickAnswerSheetImages, summarizeOriginalVolume, keyNames, standardFull, MULTI_FULL } from './format.js';
 import { requireSession, passwordMatches, createSessionToken, sessionCookie, clearSessionCookie } from './auth.js';
 import * as store from './store.js';
+import { scopedStore } from './scope.js';
+import * as accounts from './accounts.js';
+import { REGISTER_HTML, ACCOUNT_HTML } from './pages.js';
 import { ADMIN_HTML } from './adminHtml.js';
 
 const NO_STORE = {
@@ -51,6 +54,13 @@ function statusOf(err) {
  * 失败时不动快照表 —— 因此不会因为一次抓取失败而误报"成绩单消失/重复发布"。
  */
 export async function runPoll(env, opts = {}) {
+  const account = opts.account || null;
+  const accountId = Number(account && account.id) || 0;
+  const st = scopedStore(env.DB, accountId);
+  // 每个账号用自己绑定的慧学星账号抓取；未绑定时回退到环境变量（仅兼容旧部署）
+  let creds = { username: '', password: '' };
+  try { creds = await accounts.upstreamCredentials(env.DB, account, env, env.SESSION_SECRET); } catch { creds = { username: '', password: '' }; }
+  const envUp = { ...env, HXXAI_USERNAME: creds.username, HXXAI_PASSWORD: creds.password };
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
   const run = {
@@ -71,15 +81,15 @@ export async function runPoll(env, opts = {}) {
 
   try {
     let session = null;
-    try { session = await store.getSession(env.DB); } catch { session = null; }
+    try { session = await st.getSession(); } catch { session = null; }
     let jar = session ? session.jar : [];
     const mustLogin = opts.forceRelogin || !session || !session.loginOk || jar.length === 0;
 
     if (mustLogin) {
-      const l = await login(env);
+      const l = await login(envUp);
       jar = l.jar;
       run.relogin = 1;
-      await store.saveSession(env.DB, jar, true, l.message, new Date().toISOString());
+      await st.saveSession(jar, true, l.message, new Date().toISOString());
     }
 
     let page;
@@ -87,10 +97,10 @@ export async function runPoll(env, opts = {}) {
       page = await fetchExamList(env, jar);
     } catch (e) {
       if (e && e.kind === 'auth_expired' && run.relogin === 0) {
-        const l = await login(env);
+        const l = await login(envUp);
         jar = l.jar;
         run.relogin = 1;
-        await store.saveSession(env.DB, jar, true, l.message, new Date().toISOString());
+        await st.saveSession(jar, true, l.message, new Date().toISOString());
         page = await fetchExamList(env, jar);
       } else {
         throw e;
@@ -110,7 +120,7 @@ export async function runPoll(env, opts = {}) {
       rawItems = rawItems.concat(more.list);
     }
 
-    const prevMap = await store.loadSnapshotMap(env.DB);
+    const prevMap = await st.loadSnapshotMap();
     const coldStart = prevMap.size === 0;
     const { items, events } = diffExams(prevMap, rawItems);
     const nowIso = new Date().toISOString();
@@ -119,7 +129,7 @@ export async function runPoll(env, opts = {}) {
     const effective = coldStart ? [] : events;
     const changedKeys = new Set(effective.map((e) => e.examKey));
 
-    for (const ev of effective) await store.insertEvent(env.DB, ev, nowIso);
+    for (const ev of effective) await st.insertEvent(ev, nowIso);
     // 没变化的条目不必每轮都写库：30 分钟内已确认过的跳过，只为控制 D1 的写入行数配额
     const refreshMs = 30 * 60 * 1000;
     const nowMs = Date.now();
@@ -128,7 +138,7 @@ export async function runPoll(env, opts = {}) {
       const prev = prevMap.get(it.examKey);
       const stale = !prev || !prev.last_seen_at || nowMs - Date.parse(prev.last_seen_at) > refreshMs;
       if (!stale && !changedKeys.has(it.examKey)) continue;
-      await store.upsertSnapshot(env.DB, it, nowIso, changedKeys.has(it.examKey));
+      await st.upsertSnapshot(it, nowIso, changedKeys.has(it.examKey));
       written += 1;
     }
     run.rowsWritten = written;
@@ -145,8 +155,8 @@ export async function runPoll(env, opts = {}) {
     for (const m of targets.slice(0, detailCap)) {
       try {
         const r = await resolveDetailRows(env, jar, { examId: m.examId, examTypeId: m.examTypeId });
-        if (r.rows.length) subjectsChanged += await store.syncSubjects(env.DB, m.examKey, r.rows, nowIso);
-        if (r.meta) { await store.saveExamMeta(env.DB, m.examKey, r.meta, nowIso); metaSaved += 1; }
+        if (r.rows.length) subjectsChanged += await st.syncSubjects(m.examKey, r.rows, nowIso);
+        if (r.meta) { await st.saveExamMeta(m.examKey, r.meta, nowIso); metaSaved += 1; }
         // 答题卡：原卷图不在 HTML 里（那是 Vue 模板），走页面脚本用的两个接口再深度挖 URL
         try {
           const groups = [];
@@ -198,9 +208,9 @@ export async function runPoll(env, opts = {}) {
             if (sheetData.papers && sheetData.papers.length) metaExtra.papers = sheetData.papers;
             if (Object.keys(metaExtra).length) {
               const payload = { ...(r.meta || {}), ...metaExtra };
-              await store.saveExamMeta(env.DB, m.examKey, payload, nowIso);
+              await st.saveExamMeta(m.examKey, payload, nowIso);
               if (String(m.examId) !== String(m.examKey)) {
-                await store.saveExamMeta(env.DB, String(m.examId), payload, nowIso);
+                await st.saveExamMeta(String(m.examId), payload, nowIso);
               }
             }
           } catch (e) {
@@ -217,7 +227,7 @@ export async function runPoll(env, opts = {}) {
             if (urls.length) groups.push({ subject: '', urls });
           }
           detailIssues.push(m.examId + ' 原卷统计 试' + ovStats.tried + '/成' + ovStats.ok + '/解析' + ovStats.parsed + '/块' + originals.length);
-          imagesSaved += await store.saveExamImages(env.DB, m.examKey, groups, nowIso);   // 传空也会清掉旧地址
+          imagesSaved += await st.saveExamImages(m.examKey, groups, nowIso);   // 传空也会清掉旧地址
           if (groups.length) run.subjectsWithSheets = groups.length;
         } catch (e) {
           if (!(e && e.kind === 'auth_expired')) detailIssues.push(m.examId + ' 答题卡 ' + ((e && e.kind) || 'error'));
@@ -250,14 +260,14 @@ export async function runPoll(env, opts = {}) {
     run.httpStatus = e && e.httpStatus ? e.httpStatus : null;
     run.message = (kind + ': ' + (e && e.message ? e.message : String(e))).slice(0, 500);
     if (kind === 'login_failed' || kind === 'config_error') {
-      try { await store.saveSession(env.DB, [], false, run.message, new Date().toISOString()); } catch { /* 记录失败不影响主流程 */ }
+      try { await st.saveSession([], false, run.message, new Date().toISOString()); } catch { /* 记录失败不影响主流程 */ }
     }
   } finally {
     run.finishedAt = new Date().toISOString();
     run.durationMs = Date.now() - t0;
     try {
-      await store.insertRun(env.DB, run);
-      await store.pruneRuns(env.DB, 300);
+      await st.insertRun(run);
+      await st.pruneRuns(300);
     } catch (e) {
       run.message = (run.message || '') + ' | poll_runs 写入失败: ' + (e && e.message ? e.message : String(e));
     }
@@ -277,16 +287,17 @@ function meanIntervalMinutes(runs) {
   return Math.round((median / 60000) * 10) / 10;
 }
 
-async function buildState(env) {
+async function buildState(env, accountId = 0) {
+  const st = scopedStore(env.DB, Number(accountId) || 0);
   const [session, snapshots, events, runs, snapshotCount, subjectMap, metaMap, imageMap] = await Promise.all([
-    store.getSession(env.DB).catch(() => null),
-    store.listSnapshots(env.DB, 200),
-    store.listEvents(env.DB, 200),
-    store.listRuns(env.DB, 20),
-    store.countSnapshots(env.DB).catch(() => 0),
-    store.loadAllSubjects(env.DB).catch(() => new Map()),
-    store.loadAllExamMeta(env.DB).catch(() => new Map()),
-    store.loadAllExamImages(env.DB).catch(() => new Map()),
+    st.getSession().catch(() => null),
+    st.listSnapshots(200),
+    st.listEvents(200),
+    st.listRuns(20),
+    st.countSnapshots().catch(() => 0),
+    st.loadAllSubjects().catch(() => new Map()),
+    st.loadAllExamMeta().catch(() => new Map()),
+    st.loadAllExamImages().catch(() => new Map()),
   ]);
   const imagesOut = {};
   for (const [k, v] of imageMap) imagesOut[k] = v;
@@ -453,6 +464,8 @@ async function resolveDetailRows(env, jar, opts) {
  * 这里只在库里还没有该考试、或需要强制刷新时走一次上游。
  */
 async function buildDetail(env, opts) {
+  const accountId = Number(opts.accountId) || 0;
+  const st = scopedStore(env.DB, accountId);
   const examId = String(opts.examId);
   const examTypeId = opts.examTypeId ? String(opts.examTypeId) : null;
   const cacheKey = examId + '|' + (examTypeId || '');
@@ -462,9 +475,9 @@ async function buildDetail(env, opts) {
   let value;
   try {
     // 库里有就直接用（轮询时已存），没有再打上游
-    const storedMeta = await store.loadAllExamMeta(env.DB).catch(() => new Map());
-    const storedSubs = await store.loadAllSubjects(env.DB).catch(() => new Map());
-    const storedImgs = await store.loadAllExamImages(env.DB).catch(() => new Map());
+    const storedMeta = await st.loadAllExamMeta().catch(() => new Map());
+    const storedSubs = await st.loadAllSubjects().catch(() => new Map());
+    const storedImgs = await st.loadAllExamImages().catch(() => new Map());
     const hasMeta = storedMeta.has(examId);
     const hasSubs = (storedSubs.get(examId) || []).length > 0;
     if (hasMeta || hasSubs) {
@@ -539,8 +552,8 @@ async function buildDiagnose(env) {
 /* ============================ 登录 ============================ */
 
 async function handleLogin(request, env) {
-  if (!env.ADMIN_PASSWORD || !env.SESSION_SECRET) {
-    return json({ ok: false, error: 'server_not_configured', message: '未设置 ADMIN_PASSWORD / SESSION_SECRET' }, 500);
+  if (!env.SESSION_SECRET || !env.DB) {
+    return json({ ok: false, error: 'server_not_configured', message: '未设置 SESSION_SECRET 或未绑定 D1' }, 500);
   }
   const ip = request.headers.get('cf-connecting-ip') || 'unknown';
   const attempt = await store.getLoginAttempt(env.DB, ip).catch(() => null);
@@ -549,16 +562,19 @@ async function handleLogin(request, env) {
 
   let body = {};
   try { body = await request.json(); } catch { body = {}; }
+  const username = String(body.username == null ? '' : body.username).trim();
+  const password = String(body.password == null ? '' : body.password);
 
-  const ok = await passwordMatches(body.password ?? '', env.ADMIN_PASSWORD, env.SESSION_SECRET);
-  if (!ok) {
-    const r = await store.recordLoginFailure(env.DB, ip, new Date().toISOString()).catch(() => ({ count: 0, blockedUntil: null }));
-    return json({ ok: false, error: 'bad_password', remaining: Math.max(0, 8 - Number(r.count || 0)), blockedUntil: r.blockedUntil }, 401);
+  // 账号不存在与口令错误返回同一个错误，避免账号枚举
+  const result = await accounts.authenticate(env.DB, username, password);
+  if (!result.ok) {
+    await store.recordLoginFailure(env.DB, ip, new Date().toISOString()).catch(() => null);
+    return json({ ok: false, error: 'bad_credentials', message: '账号或密码不正确' }, 401);
   }
-  await store.clearLoginAttempts(env.DB, ip).catch(() => {});
-  const ttl = Number(env.ADMIN_SESSION_HOURS || 12) * 3600;
-  const token = await createSessionToken(env.SESSION_SECRET, ttl);
-  return json({ ok: true, expiresInSeconds: ttl }, 200, { 'set-cookie': sessionCookie(token, ttl) });
+  await store.clearLoginAttempts(env.DB, ip).catch(() => null);
+  const hours = Math.max(1, Number(env.ADMIN_SESSION_HOURS || 12));
+  const token = await createSessionToken(env.SESSION_SECRET, { accountId: result.account.id, username: result.account.username }, hours * 3600);
+  return json({ ok: true, username: result.account.username }, 200, { 'set-cookie': sessionCookie(token, hours * 3600) });
 }
 
 /* ============================ 路由 ============================ */
@@ -583,23 +599,96 @@ export default {
         const run = await runPoll(env, { trigger: 'http-cron' });
         return json({ ok: run.status !== 'internal_error', run });
       }
+      if (path === '/register' && request.method === 'GET') return html(REGISTER_HTML);
+      if (path === '/register' && request.method === 'POST') {
+        let body = {};
+        try { body = await request.json(); } catch { body = {}; }
+        const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+        const att = await store.getLoginAttempt(env.DB, 'reg:' + ip).catch(() => null);
+        const wait = store.blockedSeconds(att);
+        if (wait > 0) return json({ ok: false, error: 'too_many_attempts', message: '尝试过于频繁，请 ' + wait + ' 秒后再试' }, 429, { 'retry-after': String(wait) });
+        const created = await accounts.createAccount(
+          env.DB,
+          {
+            username: body.username,
+            password: body.password,
+            upstreamUser: body.upstreamUser,
+            upstreamSecret: body.upstreamSecret,
+            sessionSecret: env.SESSION_SECRET,
+          },
+          new Date().toISOString()
+        );
+        if (!created.ok) {
+          await store.recordLoginFailure(env.DB, 'reg:' + ip, new Date().toISOString()).catch(() => null);
+          const code = created.error === 'duplicate' ? 409 : 400;
+          return json({ ok: false, error: created.error, message: created.message }, code);
+        }
+        return json({ ok: true, username: created.account.username, id: created.account.id }, 201);
+      }
+
+      if (path === '/account' && request.method === 'GET') {
+        const sess0 = await requireSession(request, env.SESSION_SECRET);
+        if (!sess0.ok) return new Response(null, { status: 302, headers: { location: '/admin' } });
+        return html(ACCOUNT_HTML);
+      }
+
       if (path === '/admin') return html(ADMIN_HTML);
 
       if (path === '/admin/api/login' && request.method === 'POST') return await handleLogin(request, env);
       if (path === '/admin/api/logout' && request.method === 'POST') return json({ ok: true }, 200, { 'set-cookie': clearSessionCookie() });
 
       if (path.startsWith('/admin/api/')) {
-        const s = await requireSession(request, env.SESSION_SECRET);
-        if (!s.ok) return json({ ok: false, error: 'unauthorized', reason: s.reason }, 401);
+        const sess = await requireSession(request, env.SESSION_SECRET);
+        if (!sess.ok) return json({ ok: false, error: 'unauthorized', reason: sess.reason }, 401);
+        // 会话必须对应一个仍然存在的账号；账号被删除后旧 Cookie 立即失效
+        const account = await accounts.getAccount(env.DB, sess.accountId).catch(() => null);
+        if (!account) return json({ ok: false, error: 'unauthorized', reason: 'no_account' }, 401);
 
-        if (path === '/admin/api/state' && request.method === 'GET') return json(await buildState(env));
+        if (path === '/admin/api/me' && request.method === 'GET') return json({ ok: true, username: account.username, upstreamUser: account.upstream_user || '' });
+
+        if (path === '/admin/api/account/password' && request.method === 'POST') {
+          let body = {};
+          try { body = await request.json(); } catch { body = {}; }
+          const r = await accounts.changePassword(env.DB, account.id, body.password, new Date().toISOString());
+          if (!r.ok) return json({ ok: false, error: r.error, message: r.message }, 400);
+          return json({ ok: true });
+        }
+
+        if (path === '/admin/api/account/upstream' && request.method === 'POST') {
+          let body = {};
+          try { body = await request.json(); } catch { body = {}; }
+          const pass = body.upstreamSecret === undefined ? undefined : String(body.upstreamSecret || '');
+          await accounts.updateUpstream(env.DB, account.id, String(body.upstreamUser || '').trim(), pass, env.SESSION_SECRET, new Date().toISOString());
+          return json({ ok: true });
+        }
+
+        if (path === '/admin/api/account/delete' && request.method === 'POST') {
+          let body = {};
+          try { body = await request.json(); } catch { body = {}; }
+          if (body.confirm !== 'DELETE') return json({ ok: false, error: 'need_confirm', message: '需要确认才能注销' }, 400);
+          // 先按前缀删掉该账号的全部数据，再删账号本身
+          const pre = 'a' + account.id + '|';
+          const like = pre + '%';
+          await env.DB.batch([
+            env.DB.prepare('DELETE FROM exam_snapshot WHERE exam_key LIKE ?').bind(like),
+            env.DB.prepare('DELETE FROM exam_subject WHERE exam_key LIKE ?').bind(like),
+            env.DB.prepare('DELETE FROM exam_meta WHERE exam_key LIKE ?').bind(like),
+            env.DB.prepare('DELETE FROM exam_image WHERE exam_key LIKE ?').bind(like),
+            env.DB.prepare('DELETE FROM events WHERE account_id = ?').bind(account.id),
+            env.DB.prepare('DELETE FROM poll_runs WHERE account_id = ?').bind(account.id),
+          ]);
+          await accounts.deleteAccount(env.DB, account.id);
+          return json({ ok: true }, 200, { 'set-cookie': clearSessionCookie() });
+        }
+
+        if (path === '/admin/api/state' && request.method === 'GET') return json(await buildState(env, account.id));
         if (path === '/admin/api/poll' && request.method === 'POST') {
-          const run = await runPoll(env, { trigger: 'manual' });
-          return json({ ok: run.status !== 'internal_error', run, state: await buildState(env) });
+          const run = await runPoll(env, { trigger: 'manual', account });
+          return json({ ok: run.status !== 'internal_error', run, state: await buildState(env, account.id) });
         }
         if (path === '/admin/api/relogin' && request.method === 'POST') {
           const run = await runPoll(env, { trigger: 'manual', forceRelogin: true });
-          return json({ ok: run.status !== 'auth_failed', run, state: await buildState(env) });
+          return json({ ok: run.status !== 'auth_failed', run, state: await buildState(env, account.id) });
         }
         if (path === '/admin/api/diagnose' && request.method === 'GET') return json(await buildDiagnose(env));
         // 手动导入：把 DevTools 里复制的响应（JSON 或 HTML）整段贴进来，自动挖出图片地址
@@ -617,7 +706,7 @@ export default {
           if (!urls.length) urls = extractImageUrls(text, originOf(env));
           if (!urls.length) return json({ ok: false, error: 'no_image_found', hint: '这段内容里没有识别到扫描件地址' }, 200);
           const changed = await store.saveExamImages(env.DB, examKey, urls, new Date().toISOString());
-          return json({ ok: true, count: urls.length, changed, urls: urls.slice(0, 30), state: await buildState(env) });
+          return json({ ok: true, count: urls.length, changed, urls: urls.slice(0, 30), state: await buildState(env, account.id) });
         }
         if (path === '/admin/api/image' && request.method === 'GET') {
           const target = url.searchParams.get('u');
@@ -644,7 +733,7 @@ export default {
         if (path === '/admin/api/detail' && request.method === 'GET') {
           const examId = url.searchParams.get('examId');
           if (!examId) return json({ ok: false, error: 'missing_examId' }, 400);
-          return json(await buildDetail(env, { examId, examTypeId: url.searchParams.get('examTypeId') }));
+          return json(await buildDetail(env, { examId, examTypeId: url.searchParams.get('examTypeId') , accountId: account.id }));
         }
         return json({ ok: false, error: 'not_found' }, 404);
       }
@@ -655,6 +744,21 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runPoll(env, { trigger: 'cron:' + (event && event.cron ? event.cron : '') }));
+    // 每个账号各自抓自己的成绩单，互不干扰；单个账号失败不影响其他账号
+    ctx.waitUntil((async () => {
+      let list = [];
+      try { list = await accounts.listAccounts(env.DB); } catch { list = []; }
+      if (!list.length) {
+        // 还没有任何账号时，跑一次“无归属”巡检，避免旧部署完全停摆
+        await runPoll(env, { trigger: 'cron:' + (event && event.cron ? event.cron : '') });
+        return;
+      }
+      for (const row of list) {
+        try {
+          const full = await accounts.getAccount(env.DB, row.id);
+          if (full) await runPoll(env, { trigger: 'cron:' + (event && event.cron ? event.cron : ''), account: full });
+        } catch { /* 单账号失败继续下一个 */ }
+      }
+    })());
   },
 };

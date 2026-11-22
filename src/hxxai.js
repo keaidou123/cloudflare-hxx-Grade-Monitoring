@@ -107,9 +107,15 @@ export function cookieHeader(jar, nowMs = Date.now()) {
  * 登录。返回 {jar, data, message}。
  * 失败抛 UpstreamError('login_failed' | 'parse_error' | 'network_error')。
  */
+const cleanEnv = (v) => String(v === undefined || v === null ? '' : v).replace(/^[\s\uFEFF]+|[\s\uFEFF]+$/g, '');
+
 export async function login(env, fetchImpl = fetch) {
   const origin = originOf(env);
-  if (!env.HXXAI_USERNAME || !env.HXXAI_PASSWORD) {
+  // 去掉首尾空白 / BOM：在 Cloudflare 里粘贴变量很容易带进换行，
+  // 而「机密」类型的值添加后不可查看，导致登录一直失败却看不出原因。
+  const username = cleanEnv(env.HXXAI_USERNAME);
+  const password = cleanEnv(env.HXXAI_PASSWORD);
+  if (!username || !password) {
     throw new UpstreamError('config_error', '缺少 HXXAI_USERNAME / HXXAI_PASSWORD');
   }
   let jar = [];
@@ -120,8 +126,8 @@ export async function login(env, fetchImpl = fetch) {
 
   // 2) 提交登录表单
   const form = new URLSearchParams();
-  form.set('userName', env.HXXAI_USERNAME);
-  form.set('password', env.HXXAI_PASSWORD);
+  form.set('userName', username);
+  form.set('password', password);
   form.set('openid', '');
   form.set('loginType', String(env.LOGIN_TYPE ?? '0'));
   form.set('isLight', '0');
@@ -146,7 +152,7 @@ export async function login(env, fetchImpl = fetch) {
     throw new UpstreamError('parse_error', '登录返回非 JSON（HTTP ' + res.status + '）', { httpStatus: res.status, raw: text.slice(0, 400) });
   }
   if (String(json.code) !== '200') {
-    throw new UpstreamError('login_failed', String(json.msg || ('登录失败 code=' + json.code)), { httpStatus: res.status, code: json.code, raw: text.slice(0, 400) });
+    throw new UpstreamError('login_failed', String(json.msg || ('登录失败 code=' + json.code)) + '（账号长度 ' + username.length + '，密码长度 ' + password.length + '；若明显不对，检查变量里有没有多余空格或换行）', { httpStatus: res.status, code: json.code, raw: text.slice(0, 400) });
   }
   return { jar, data: json.data, message: json.msg || 'ok', cookieCount: jar.length };
 }

@@ -45,8 +45,17 @@ export async function passwordMatches(input, expectedPassword, secret) {
 }
 
 /** 生成会话令牌，payload 内含过期时间（epoch 秒） */
-export async function createSessionToken(secret, ttlSeconds = 12 * 3600) {
-  const payload = JSON.stringify({ exp: Math.floor(Date.now() / 1000) + ttlSeconds, n: toB64url(crypto.getRandomValues(new Uint8Array(9))) });
+export async function createSessionToken(secret, arg = 12 * 3600, ttlSeconds) {
+  // 兼容两种调用：createSessionToken(secret, 3600) 或 createSessionToken(secret, {accountId, username}, 3600)
+  let ttl = 12 * 3600;
+  let extra = {};
+  if (typeof arg === 'number') {
+    ttl = arg;
+  } else if (arg && typeof arg === 'object') {
+    extra = { a: Number(arg.accountId) || 0, u: String(arg.username || '').slice(0, 40) };
+    ttl = Number(ttlSeconds) || 12 * 3600;
+  }
+  const payload = JSON.stringify({ exp: Math.floor(Date.now() / 1000) + ttl, n: toB64url(crypto.getRandomValues(new Uint8Array(9))), ...extra });
   const body = toB64url(encoder.encode(payload));
   const sig = toB64url(await hmacSha256(secret, body));
   return body + '.' + sig;
@@ -63,7 +72,10 @@ export async function verifySessionToken(secret, token) {
   try { payload = JSON.parse(new TextDecoder().decode(fromB64url(body))); } catch { return { ok: false, reason: 'bad_payload' }; }
   if (!payload || typeof payload.exp !== 'number') return { ok: false, reason: 'bad_payload' };
   if (payload.exp * 1000 < Date.now()) return { ok: false, reason: 'expired' };
-  return { ok: true, exp: payload.exp };
+  // 第二阶段：会话必须绑定某个账号（旧格式 token 一律视为未登录）
+  const accountId = Number(payload.a) || 0;
+  if (!accountId) return { ok: false, reason: 'no_account' };
+  return { ok: true, exp: payload.exp, accountId, username: String(payload.u || '') };
 }
 
 export function parseCookies(header) {

@@ -3,9 +3,9 @@
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 
-export function createD1(schemaPath) {
+export function createD1(...schemaPaths) {
   const db = new DatabaseSync(':memory:');
-  db.exec(readFileSync(schemaPath, 'utf8'));
+  for (const p of schemaPaths.flat()) db.exec(readFileSync(p, 'utf8'));
 
   function statement(sql, args) {
     return {
@@ -24,6 +24,8 @@ export function createD1(schemaPath) {
 
   return {
     prepare: (sql) => statement(sql, []),
+    // D1 的 batch：顺序执行，返回每组结果
+    batch: (list) => list.map((st) => st.run()),
     close: () => db.close(),
   };
 }

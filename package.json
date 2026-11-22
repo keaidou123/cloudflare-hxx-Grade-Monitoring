@@ -2,7 +2,6 @@
   "name": "hxxai-report-watch",
   "version": "1.0.0",
   "private": true,
-  "license": "GPL-3.0-only",
   "type": "module",
   "description": "慧学星成绩单发布监控 + 密码保护的管理界面 (Cloudflare Worker + D1 + Cron)",
   "scripts": {
@@ -10,7 +9,7 @@
     "deploy": "wrangler deploy",
     "db:init": "wrangler d1 execute hxxai_report_watch --remote --file=./schema.sql",
     "db:init:local": "wrangler d1 execute hxxai_report_watch --local --file=./schema.sql",
-    "test": "node --test",
+    "test": "node --test --test-concurrency=1",
     "ui:build": "node _build/build.mjs",
     "bundle": "node _build/bundle.mjs",
     "pages:dist": "node _build/pages.mjs",

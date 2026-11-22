@@ -5,6 +5,7 @@ import { createD1 } from './d1shim.mjs';
 import worker, { runPoll } from '../src/index.js';
 
 const SCHEMA = fileURLToPath(new URL('../schema.sql', import.meta.url));
+const MIG_ACCOUNTS = fileURLToPath(new URL('../migrate-007-accounts.sql', import.meta.url));
 
 /** 假上游：只实现实测到的那三个端点，行为按真实响应形状复刻 */
 function makeUpstream() {
@@ -72,7 +73,7 @@ test('端到端：基线 -> 无变化 -> 发布与涨分 -> 会话过期自动�
   const upstream = makeUpstream();
   const realFetch = globalThis.fetch;
   globalThis.fetch = upstream.fetchStub;
-  const db = createD1(SCHEMA);
+  const db = createD1(SCHEMA, MIG_ACCOUNTS);
   const env = makeEnv(db);
   t.after(() => { globalThis.fetch = realFetch; db.close(); });
 
@@ -110,7 +111,7 @@ test('端到端：基线 -> 无变化 -> 发布与涨分 -> 会话过期自动�
   assert.equal(kinds[0].new_score, '92');
   assert.equal(kinds[1].subject_name, '物理');
 
-  const snap = db.prepare('SELECT score_num, last_change_at FROM exam_snapshot WHERE exam_key = ?').bind('101').first();
+  const snap = db.prepare('SELECT score_num, last_change_at FROM exam_snapshot WHERE exam_key = ?').bind('a0|101').first();
   assert.equal(snap.score_num, 92);
   assert.ok(snap.last_change_at, '变化时间要落库');
 
@@ -129,7 +130,7 @@ test('失败隔离：抓取报错不改快照、不写事件；账号错了记�
   const upstream = makeUpstream();
   const realFetch = globalThis.fetch;
   globalThis.fetch = upstream.fetchStub;
-  const db = createD1(SCHEMA);
+  const db = createD1(SCHEMA, MIG_ACCOUNTS);
   const env = makeEnv(db);
   t.after(() => { globalThis.fetch = realFetch; db.close(); });
 
@@ -154,7 +155,7 @@ test('管理界面：密码保护、no-store、未授权 401', async (t) => {
   const upstream = makeUpstream();
   const realFetch = globalThis.fetch;
   globalThis.fetch = upstream.fetchStub;
-  const db = createD1(SCHEMA);
+  const db = createD1(SCHEMA, MIG_ACCOUNTS);
   const env = makeEnv(db);
   t.after(() => { globalThis.fetch = realFetch; db.close(); });
 
@@ -170,17 +171,28 @@ test('管理界面：密码保护、no-store、未授权 401', async (t) => {
   const unauth = await worker.fetch(new Request('https://w.example.com/admin/api/state'), env, {});
   assert.equal(unauth.status, 401);
 
-  const mkLogin = (pw, ip) => new Request('https://w.example.com/admin/api/login', {
+  // 先注册一个账号，再用「账号名 + 密码」登录
+  const created = await worker.fetch(new Request('https://w.example.com/register', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'cf-connecting-ip': '9.9.9.0' },
+    body: JSON.stringify({ username: 'tester', password: 'pass12345', upstreamUser: 'u', upstreamSecret: 'p' }),
+  }), env, {});
+  assert.equal(created.status, 201, '注册应成功');
+
+  const mkLogin = (username, pw, ip) => new Request('https://w.example.com/admin/api/login', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'cf-connecting-ip': ip },
-    body: JSON.stringify({ password: pw }),
+    body: JSON.stringify({ username, password: pw }),
   });
 
-  const wrong = await worker.fetch(mkLogin('nope', '9.9.9.1'), env, {});
+  const wrong = await worker.fetch(mkLogin('tester', 'nope', '9.9.9.1'), env, {});
   assert.equal(wrong.status, 401);
-  assert.equal((await wrong.json()).error, 'bad_password');
+  assert.equal((await wrong.json()).error, 'bad_credentials', '账号或密码错误统一返回 bad_credentials');
 
-  const ok = await worker.fetch(mkLogin('admin-pw', '9.9.9.2'), env, {});
+  const noUser = await worker.fetch(mkLogin('', 'pass12345', '9.9.9.3'), env, {});
+  assert.equal(noUser.status, 401, '账号名为空必须拒绝');
+
+  const ok = await worker.fetch(mkLogin('tester', 'pass12345', '9.9.9.2'), env, {});
   assert.equal(ok.status, 200);
   const setCookie = ok.headers.get('set-cookie');
   assert.match(setCookie, /hw_session=/);
@@ -192,8 +204,8 @@ test('管理界面：密码保护、no-store、未授权 401', async (t) => {
   assert.equal(authed.status, 200);
   const body = await authed.json();
   assert.equal(body.ok, true);
-  assert.equal(body.snapshotCount, 1);
-  assert.equal(body.config.passwordSet, true);
+  assert.equal(body.snapshotCount, 0, '新账号看不到别人的数据');
+  assert.ok(!JSON.stringify(body).includes('admin-pw'), '响应里不能出现旧的单账号密码');
   assert.ok(!JSON.stringify(body).includes('admin-pw'), '响应里不能出现管理密码明文');
   assert.ok(!JSON.stringify(body).includes('"p"'), '响应里不能出现上游密码明文');
 
