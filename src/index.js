@@ -10,6 +10,7 @@ import { resolveExamTitle, resolveExamDate, isMultiSubject, summarizeDetail, sum
 import { requireSession, passwordMatches, createSessionToken, sessionCookie, clearSessionCookie } from './auth.js';
 import * as store from './store.js';
 import { scopedStore } from './scope.js';
+import { ensureSchema } from './schema.js';
 import * as accounts from './accounts.js';
 import { REGISTER_HTML, ACCOUNT_HTML } from './pages.js';
 import { ADMIN_HTML } from './adminHtml.js';
@@ -551,6 +552,15 @@ async function buildDiagnose(env) {
 
 /* ============================ 登录 ============================ */
 
+// 每个 isolate 只做一次建表/补列检查；失败也不抛，避免把请求打死
+let schemaReady = null;
+function ensureDb(env) {
+  if (!schemaReady) {
+    schemaReady = ensureSchema(env.DB).catch((e) => ({ created: 0, altered: [], error: String((e && e.message) || e) }));
+  }
+  return schemaReady;
+}
+
 async function handleLogin(request, env) {
   if (!env.SESSION_SECRET || !env.DB) {
     return json({ ok: false, error: 'server_not_configured', message: '未设置 SESSION_SECRET 或未绑定 D1' }, 500);
@@ -599,6 +609,8 @@ export default {
         const run = await runPoll(env, { trigger: 'http-cron' });
         return json({ ok: run.status !== 'internal_error', run });
       }
+      await ensureDb(env);
+
       if (path === '/register' && request.method === 'GET') return html(REGISTER_HTML);
       if (path === '/register' && request.method === 'POST') {
         let body = {};
@@ -746,6 +758,7 @@ export default {
   async scheduled(event, env, ctx) {
     // 每个账号各自抓自己的成绩单，互不干扰；单个账号失败不影响其他账号
     ctx.waitUntil((async () => {
+      await ensureDb(env);
       let list = [];
       try { list = await accounts.listAccounts(env.DB); } catch { list = []; }
       if (!list.length) {
