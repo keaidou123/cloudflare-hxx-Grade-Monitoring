@@ -11,7 +11,14 @@
 
 **第 1 步：先跑 SQL（顺序不能反，代码依赖新表）**
 
-D1 控制台 → 选中你的库 → Console → 粘贴要执行的 `.sql` 文件全文 → **Ctrl+A 全选** → 执行。
+D1 控制台 → 选中你的库 → Console → 粘贴要执行的 `.sql` 文件全文 → 点 **Run 右侧小箭头 ▾** → 选 **「Run all in sequence」**。
+
+**关键：用下拉里的「Run all in sequence」**
+
+SQL 输入框右下角那个蓝色 **Run** 按钮**只执行光标所在的那一条**（跑完显示 `Executed 1/1`）。
+要一次跑完全部语句：点 **Run 右边的小箭头 ▾** → 在下拉里选 **「Run all in sequence」**（依次执行，遇到错误停止）。
+
+看到 `Executed N/N`（N 大于 1）才算全部执行完；只显示 `Executed 1/1` 就是只跑了一条。
 如果提示 `duplicate column name` 或 `table already exists`，说明已经跑过，跳过即可。
 
 **第 2 步：粘贴新的 `worker.js`**
@@ -413,7 +420,7 @@ Q：以后域名换了怎么办？
 
 ### 部署前必须做的事
 
-1. 在 D1 控制台执行新迁移（只增不删）：`migrate-007-accounts.sql`
+1. 在 D1 控制台执行新迁移（只增不删）：`migrate-007-accounts.sql`　—— 记得用 **Run 右边小箭头 ▾ → Run all in sequence**，不要直接点 Run
 2. 重新粘贴 `worker.js` 并部署
 3. 打开 `/register` 注册第一个账号（填你自己的慧学星账号与密码）
 4. 之后用这个账号登录 `/admin`，点「立即检查」
