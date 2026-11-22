@@ -1,6 +1,7 @@
+// @ts-nocheck —— 这是构建产物，给 Cloudflare 编辑器的类型推断关掉，避免无意义的红字
 /* 慧学星成绩单监控 —— 单文件构建产物（由 _build/bundle.mjs 生成，勿手改）
    源文件在 src/，改了源文件请重新运行：node _build/bundle.mjs 
-   生成时间: 2026-11-22T01:50:54.315Z */
+   生成时间: 2026-11-22T01:59:20.151Z */
 
 // ---- diff.js ----
 /**
@@ -659,6 +660,12 @@ async function passwordMatches(input, expectedPassword, secret) {
 }
 
 /** 生成会话令牌，payload 内含过期时间（epoch 秒） */
+/**
+ * @param {string} secret
+ * @param {any} [arg] 传数字=有效期秒数；传 {accountId, username} = 绑定账号的会话
+ * @param {number} [ttlSeconds]
+ * @returns {Promise<string>}
+ */
 async function createSessionToken(secret, arg = 12 * 3600, ttlSeconds) {
   // 兼容两种调用：createSessionToken(secret, 3600) 或 createSessionToken(secret, {accountId, username}, 3600)
   let ttl = 12 * 3600;
@@ -675,6 +682,11 @@ async function createSessionToken(secret, arg = 12 * 3600, ttlSeconds) {
   return body + '.' + sig;
 }
 
+/**
+ * @param {string} secret
+ * @param {string} token
+ * @returns {Promise<{ok: boolean, reason?: string, exp?: number, accountId?: number, username?: string}>}
+ */
 async function verifySessionToken(secret, token) {
   if (!token || typeof token !== 'string' || !token.includes('.')) return { ok: false, reason: 'malformed' };
   const [body, sig] = token.split('.');
@@ -1271,6 +1283,7 @@ function scopedStore(db, accountId) {
         await db.prepare('INSERT INTO exam_subject (exam_key, subject, score, full, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(exam_key, subject) DO UPDATE SET score = excluded.score, full = excluded.full, updated_at = excluded.updated_at')
           .bind(k, r.subject, r.score ?? null, r.full ?? null, nowIso).run();
       }
+      return (rows || []).length;
     },
 
     async loadAllSubjects() {
@@ -1762,6 +1775,9 @@ async function listAccounts(db) {
 }
 
 /** 创建账号；重名/弱口令一律报错，绝不覆盖既有账号 */
+/**
+ * @returns {Promise<{ok: boolean, account?: any, error?: string, message?: string}>}
+ */
 async function createAccount(db, { username, password, upstreamUser, upstreamSecret, sessionSecret }, nowIso) {
   const name = String(username || '').trim();
   const up = usernameProblem(name);
@@ -1788,6 +1804,9 @@ async function createAccount(db, { username, password, upstreamUser, upstreamSec
 }
 
 /** 登录校验：账号不存在与口令错误返回同一个错误，避免账号枚举 */
+/**
+ * @returns {Promise<{ok: boolean, account?: any, error?: string, message?: string}>}
+ */
 async function authenticate(db, username, password) {
   const row = await findAccountByUsername(db, username);
   const ok = row ? await verifyPassword(password, row) : false;

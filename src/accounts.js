@@ -122,6 +122,9 @@ export async function listAccounts(db) {
 }
 
 /** 创建账号；重名/弱口令一律报错，绝不覆盖既有账号 */
+/**
+ * @returns {Promise<{ok: boolean, account?: any, error?: string, message?: string}>}
+ */
 export async function createAccount(db, { username, password, upstreamUser, upstreamSecret, sessionSecret }, nowIso) {
   const name = String(username || '').trim();
   const up = usernameProblem(name);
@@ -148,6 +151,9 @@ export async function createAccount(db, { username, password, upstreamUser, upst
 }
 
 /** 登录校验：账号不存在与口令错误返回同一个错误，避免账号枚举 */
+/**
+ * @returns {Promise<{ok: boolean, account?: any, error?: string, message?: string}>}
+ */
 export async function authenticate(db, username, password) {
   const row = await findAccountByUsername(db, username);
   const ok = row ? await verifyPassword(password, row) : false;

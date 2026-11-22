@@ -5,7 +5,13 @@ import { createD1 } from './d1shim.mjs';
 import worker, { runPoll } from '../src/index.js';
 
 const SCHEMA = fileURLToPath(new URL('../schema.sql', import.meta.url));
-const MIG_ACCOUNTS = fileURLToPath(new URL('../migrate-007-accounts.sql', import.meta.url));
+import { existsSync } from 'node:fs';
+// 迁移文件在源码仓叫 migrate-007-accounts.sql，发布包里叫 migrations/005-accounts.sql — 两处都能跑
+const MIG = (() => {
+  const a = fileURLToPath(new URL('../migrate-007-accounts.sql', import.meta.url));
+  const b = fileURLToPath(new URL('../migrations/005-accounts.sql', import.meta.url));
+  return existsSync(a) ? a : b;
+})();
 
 /** 假上游：只实现实测到的那三个端点，行为按真实响应形状复刻 */
 function makeUpstream() {
@@ -73,7 +79,7 @@ test('端到端：基线 -> 无变化 -> 发布与涨分 -> 会话过期自动�
   const upstream = makeUpstream();
   const realFetch = globalThis.fetch;
   globalThis.fetch = upstream.fetchStub;
-  const db = createD1(SCHEMA, MIG_ACCOUNTS);
+  const db = createD1(SCHEMA, MIG);
   const env = makeEnv(db);
   t.after(() => { globalThis.fetch = realFetch; db.close(); });
 
@@ -130,7 +136,7 @@ test('失败隔离：抓取报错不改快照、不写事件；账号错了记�
   const upstream = makeUpstream();
   const realFetch = globalThis.fetch;
   globalThis.fetch = upstream.fetchStub;
-  const db = createD1(SCHEMA, MIG_ACCOUNTS);
+  const db = createD1(SCHEMA, MIG);
   const env = makeEnv(db);
   t.after(() => { globalThis.fetch = realFetch; db.close(); });
 
@@ -155,7 +161,7 @@ test('管理界面：密码保护、no-store、未授权 401', async (t) => {
   const upstream = makeUpstream();
   const realFetch = globalThis.fetch;
   globalThis.fetch = upstream.fetchStub;
-  const db = createD1(SCHEMA, MIG_ACCOUNTS);
+  const db = createD1(SCHEMA, MIG);
   const env = makeEnv(db);
   t.after(() => { globalThis.fetch = realFetch; db.close(); });
 

@@ -1,3 +1,10 @@
+import { existsSync } from 'node:fs';
+// 迁移文件在源码仓叫 migrate-007-accounts.sql，发布包里叫 migrations/005-accounts.sql — 两处都能跑
+const MIG = (() => {
+  const a = fileURLToPath(new URL('../migrate-007-accounts.sql', import.meta.url));
+  const b = fileURLToPath(new URL('../migrations/005-accounts.sql', import.meta.url));
+  return existsSync(a) ? a : b;
+})();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +14,7 @@ import * as accounts from '../src/accounts.js';
 import { REGISTER_HTML } from '../src/pages.js';
 
 const SCHEMA = fileURLToPath(new URL('../schema.sql', import.meta.url));
-const MIG = fileURLToPath(new URL('../migrate-007-accounts.sql', import.meta.url));
+
 const SECRET = 'unit-test-secret';
 
 /** 多账号假上游：登录时记住 userName，之后按该 userName 返回各自的成绩单 */

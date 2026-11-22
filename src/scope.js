@@ -109,6 +109,7 @@ export function scopedStore(db, accountId) {
         await db.prepare('INSERT INTO exam_subject (exam_key, subject, score, full, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(exam_key, subject) DO UPDATE SET score = excluded.score, full = excluded.full, updated_at = excluded.updated_at')
           .bind(k, r.subject, r.score ?? null, r.full ?? null, nowIso).run();
       }
+      return (rows || []).length;
     },
 
     async loadAllSubjects() {

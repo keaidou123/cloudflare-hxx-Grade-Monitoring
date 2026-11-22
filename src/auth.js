@@ -45,6 +45,12 @@ export async function passwordMatches(input, expectedPassword, secret) {
 }
 
 /** 生成会话令牌，payload 内含过期时间（epoch 秒） */
+/**
+ * @param {string} secret
+ * @param {any} [arg] 传数字=有效期秒数；传 {accountId, username} = 绑定账号的会话
+ * @param {number} [ttlSeconds]
+ * @returns {Promise<string>}
+ */
 export async function createSessionToken(secret, arg = 12 * 3600, ttlSeconds) {
   // 兼容两种调用：createSessionToken(secret, 3600) 或 createSessionToken(secret, {accountId, username}, 3600)
   let ttl = 12 * 3600;
@@ -61,6 +67,11 @@ export async function createSessionToken(secret, arg = 12 * 3600, ttlSeconds) {
   return body + '.' + sig;
 }
 
+/**
+ * @param {string} secret
+ * @param {string} token
+ * @returns {Promise<{ok: boolean, reason?: string, exp?: number, accountId?: number, username?: string}>}
+ */
 export async function verifySessionToken(secret, token) {
   if (!token || typeof token !== 'string' || !token.includes('.')) return { ok: false, reason: 'malformed' };
   const [body, sig] = token.split('.');
