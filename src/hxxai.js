@@ -17,7 +17,8 @@ export class UpstreamError extends Error {
 }
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-const TIMEOUT_MS = 15000;
+// 上游站点在国内，Cloudflare 边缘节点出境访问有时会慢；15s 容易踩线
+const TIMEOUT_MS = 25000;
 
 export function originOf(env) {
   return String(env.UPSTREAM_ORIGIN || 'https://c.hxxai.com').replace(/\/+$/, '');
@@ -32,12 +33,28 @@ function baseHeaders(referer) {
   };
 }
 
+function pathOf(url) {
+  try { return new URL(String(url)).pathname; } catch { return String(url); }
+}
+
+/**
+ * 上游请求统一入口。
+ * 跨境访问偶发超时/连接重置，网络层错误自动重试一次（业务错误不重试）。
+ */
 async function call(fetchImpl, url, init) {
-  try {
-    return await fetchImpl(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS), redirect: 'manual' });
-  } catch (e) {
-    throw new UpstreamError('network_error', '请求上游失败: ' + (e && e.message ? e.message : String(e)), { url });
+  let last = '';
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await fetchImpl(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS), redirect: 'manual' });
+    } catch (e) {
+      last = e && e.message ? e.message : String(e);
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 400));
+        continue;
+      }
+    }
   }
+  throw new UpstreamError('network_error', '请求上游失败（已重试 1 次，超时 ' + Math.round(TIMEOUT_MS / 1000) + 's）: ' + last + ' ← ' + pathOf(url), { url });
 }
 
 function readSetCookie(res) {
