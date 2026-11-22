@@ -1,7 +1,7 @@
 // @ts-nocheck —— 这是构建产物，给 Cloudflare 编辑器的类型推断关掉，避免无意义的红字
 /* 慧学星成绩单监控 —— 单文件构建产物（由 _build/bundle.mjs 生成，勿手改）
    源文件在 src/，改了源文件请重新运行：node _build/bundle.mjs 
-   生成时间: 2026-11-22T01:59:20.151Z */
+   生成时间: 2026-11-22T02:02:31.249Z */
 
 // ---- diff.js ----
 /**
@@ -1663,6 +1663,9 @@ const dec = new TextDecoder();
 
 const USERNAME_RE = /^[A-Za-z0-9_\-]{3,24}$/;
 const MIN_PASSWORD = 8;
+// Cloudflare Workers 的 crypto.subtle 对 PBKDF2 有硬上限：超过 100000 次直接抛
+// "iteration counts above 100000 are not supported"。这里用允许的最大值。
+const PBKDF2_ITERATIONS = 100000;
 const MAX_PASSWORD = 72;
 const MAX_ACCOUNTS = 20;
 
@@ -1712,7 +1715,7 @@ function passwordProblem(password) {
   return '';
 }
 
-async function hashPassword(password, iterations = 150000) {
+async function hashPassword(password, iterations = PBKDF2_ITERATIONS) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const hash = await pbkdf2(password, salt, iterations);
   return { salt: b64url(salt), hash: b64url(hash), iterations };
@@ -1722,7 +1725,9 @@ async function verifyPassword(password, row) {
   if (!row || !row.pwd_salt || !row.pwd_hash) return false;
   const salt = unb64url(row.pwd_salt);
   const expected = unb64url(row.pwd_hash);
-  const actual = await pbkdf2(password, salt, Number(row.pwd_iter) || 150000);
+  // 历史行若写了更大的迭代次数，按上限截断再比对，避免直接抛错把登录打死
+  const iter = Math.min(Number(row.pwd_iter) || PBKDF2_ITERATIONS, PBKDF2_ITERATIONS);
+  const actual = await pbkdf2(password, salt, iter);
   return timedEqual(actual, expected);
 }
 
@@ -1847,7 +1852,7 @@ async function upstreamCredentials(db, account, env, sessionSecret) {
   return { username: String(user).trim(), password: String(pass) };
 }
 
-return { MIN_PASSWORD, MAX_PASSWORD, MAX_ACCOUNTS, usernameProblem, passwordProblem, hashPassword, verifyPassword, sealSecret, openSecret, countAccounts, findAccountByUsername, getAccount, listAccounts, createAccount, authenticate, changePassword, updateUpstream, deleteAccount, upstreamCredentials };
+return { MIN_PASSWORD, PBKDF2_ITERATIONS, MAX_PASSWORD, MAX_ACCOUNTS, usernameProblem, passwordProblem, hashPassword, verifyPassword, sealSecret, openSecret, countAccounts, findAccountByUsername, getAccount, listAccounts, createAccount, authenticate, changePassword, updateUpstream, deleteAccount, upstreamCredentials };
 })();
 
 // ---- index.js ----

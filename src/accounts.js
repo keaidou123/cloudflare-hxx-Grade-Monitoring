@@ -10,6 +10,9 @@ const dec = new TextDecoder();
 
 const USERNAME_RE = /^[A-Za-z0-9_\-]{3,24}$/;
 export const MIN_PASSWORD = 8;
+// Cloudflare Workers 的 crypto.subtle 对 PBKDF2 有硬上限：超过 100000 次直接抛
+// "iteration counts above 100000 are not supported"。这里用允许的最大值。
+export const PBKDF2_ITERATIONS = 100000;
 export const MAX_PASSWORD = 72;
 export const MAX_ACCOUNTS = 20;
 
@@ -59,7 +62,7 @@ export function passwordProblem(password) {
   return '';
 }
 
-export async function hashPassword(password, iterations = 150000) {
+export async function hashPassword(password, iterations = PBKDF2_ITERATIONS) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const hash = await pbkdf2(password, salt, iterations);
   return { salt: b64url(salt), hash: b64url(hash), iterations };
@@ -69,7 +72,9 @@ export async function verifyPassword(password, row) {
   if (!row || !row.pwd_salt || !row.pwd_hash) return false;
   const salt = unb64url(row.pwd_salt);
   const expected = unb64url(row.pwd_hash);
-  const actual = await pbkdf2(password, salt, Number(row.pwd_iter) || 150000);
+  // 历史行若写了更大的迭代次数，按上限截断再比对，避免直接抛错把登录打死
+  const iter = Math.min(Number(row.pwd_iter) || PBKDF2_ITERATIONS, PBKDF2_ITERATIONS);
+  const actual = await pbkdf2(password, salt, iter);
   return timedEqual(actual, expected);
 }
 

@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS account (
   username      TEXT    NOT NULL UNIQUE COLLATE NOCASE,  -- 登录名（大小写不敏感）
   pwd_salt      TEXT    NOT NULL,                        -- base64url 随机盐
   pwd_hash      TEXT    NOT NULL,                        -- base64url PBKDF2-SHA256 结果
-  pwd_iter      INTEGER NOT NULL DEFAULT 150000,
+  pwd_iter      INTEGER NOT NULL DEFAULT 100000,
   upstream_user TEXT,                                    -- 该账号自己的慧学星账号（手机号）
   upstream_seal TEXT,                                    -- 慧学星密码：AES-GCM 封存，密钥由 SESSION_SECRET 派生
   created_at    TEXT    NOT NULL,

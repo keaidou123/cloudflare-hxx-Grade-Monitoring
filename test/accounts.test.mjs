@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   usernameProblem, passwordProblem, hashPassword, verifyPassword,
-  sealSecret, openSecret, MIN_PASSWORD,
+  sealSecret, openSecret, MIN_PASSWORD, PBKDF2_ITERATIONS,
 } from '../src/accounts.js';
 
 test('账号名校验：空、太短、非法字符、合法', () => {
@@ -49,4 +49,10 @@ test('上游密码封存：可还原、盐随机、换密钥解不开', async ()
 
 test('MIN_PASSWORD 与文本文案一致', () => {
   assert.equal(MIN_PASSWORD, 8);
+});
+
+test('PBKDF2 迭代次数不得超过 Workers 上限 100000', () => {
+  // Cloudflare 会在超过 100000 时抛 "iteration counts above 100000 are not supported"
+  assert.ok(PBKDF2_ITERATIONS <= 100000, '实际=' + PBKDF2_ITERATIONS);
+  assert.ok(PBKDF2_ITERATIONS >= 50000, '太低不安全');
 });
