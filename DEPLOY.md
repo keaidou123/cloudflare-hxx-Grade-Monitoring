@@ -11,7 +11,8 @@
 
 **第 1 步：先跑 SQL（顺序不能反，代码依赖新表）**
 
-D1 控制台 → 选中你的库 → Console → 粘贴要执行的 `.sql` 文件全文 → 点 **Run 右侧小箭头 ▾** → 选 **「Run all in sequence」**。
+**首次部署**：D1 控制台 → Console → 粘贴 `install.sql` 全文 → 点 **Run 右侧小箭头 ▾** → 选 **「Run all in sequence」**。
+**已有部署要升级**：按顺序逐个跑 `migrations/` 里的脚本（001 → 005），每个同样用 Run all in sequence。
 
 **关键：用下拉里的「Run all in sequence」**
 
@@ -149,37 +150,18 @@ Ctrl+F5 强制刷新 → 用账号密码登录 → 点「立即检查」→ 看�
 
 ---
 
-## 5. 第三步：建表（复制粘贴 SQL）
+## 5. 建表（跑一个文件就行）
 
-数据库是空的，要先建表。这一步分 5 次执行，顺序不能乱。
+**全新数据库**：只需要跑 **`install.sql`** 这一个文件，它已经把原来的 schema + 全部迁移合并好了。
 
-### 5.1 打开 SQL 执行窗口
+1. D1 控制台 → 点顶部 **「控制台 / Console」**
+2. 用记事本打开项目里的 **install.sql** → Ctrl+A 全选 → 复制
+3. 粘贴到输入框 → 点 **Run 右边的小箭头 ▾** → 选 **「Run all in sequence」**
+4. 看到 **Executed N/N**（N 大于 1）就成功了，左侧应该出现 11 张表
 
-在数据库详情页点顶部的「控制台」（Console）标签，会出现一个可以输入 SQL 的框。
+> **已经部署过旧版本的库不要跑 install.sql** —— 表已存在时 CREATE 会被跳过，缺的新列补不上。老库升级请按顺序跑 `migrations/` 目录里的脚本（见文末「升级已有部署」）。
 
-### 5.2 先执行 schema.sql
-
-1. 用记事本打开项目里的 schema.sql
-2. 按 Ctrl+A 全选、Ctrl+C 复制
-3. 粘贴到网页输入框
-4. 点右下角「执行」（Run）
-5. 看到 Executed N/N 就成功了
-
-最容易踩的坑：如果只执行了最后一条，会显示 Executed 1/1。
-正确做法：粘贴后在输入框里按 Ctrl+A 确认全部语句被选中，再点执行。
-执行完，左侧应该能看到这些表：events、exam_image、exam_meta、exam_snapshot、exam_subject、login_attempts、poll_runs、session。
-
-### 5.3 再依次执行 migrations 文件夹里的 4 个文件
-
-按这个顺序，每个都重复「打开 → 全选复制 → 粘贴 → 执行」：
-
-1. 001-subject.sql
-2. 002-exam-meta.sql
-3. 003-exam-image.sql
-4. 004-image-subject.sql
-
-每个都应该显示 Executed 1/1。
-如果提示 duplicate column name 或 table already exists，说明重复执行了，跳过即可，不影响使用。
+> 这段脚本全部是 `CREATE TABLE IF NOT EXISTS`，重复执行不会报错、也不会丢数据。
 
 ---
 
@@ -420,7 +402,7 @@ Q：以后域名换了怎么办？
 
 ### 部署前必须做的事
 
-1. 在 D1 控制台执行新迁移（只增不删）：`migrate-007-accounts.sql`　—— 记得用 **Run 右边小箭头 ▾ → Run all in sequence**，不要直接点 Run
+1. 跑 `migrations/005-accounts.sql`（已有部署）；**全新部署跑 `install.sql` 就已经包含了** —— 记得用 **Run 右边小箭头 ▾ → Run all in sequence**，不要直接点 Run
 2. 重新粘贴 `worker.js` 并部署
 3. 打开 `/register` 注册第一个账号（填你自己的慧学星账号与密码）
 4. 之后用这个账号登录 `/admin`，点「立即检查」
@@ -557,3 +539,17 @@ Q15：想彻底删掉
 ---
 
 祝使用顺利。出问题先点页面上的「诊断」按钮，那里的信息比猜有用得多。
+
+---
+
+## 升级已有部署（不是全新装）
+
+按这个顺序，每个文件都单独跑一遍（Run ▾ → Run all in sequence）：
+
+1. `migrations/001-subject.sql`
+2. `migrations/002-exam-meta.sql`
+3. `migrations/003-exam-image.sql`
+4. `migrations/004-image-subject.sql`
+5. `migrations/005-accounts.sql`
+
+提示 `duplicate column name` 或 `already exists` 表示这一条早跑过了，跳过即可。
