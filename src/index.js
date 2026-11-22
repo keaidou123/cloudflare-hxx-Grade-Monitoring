@@ -677,7 +677,8 @@ export default {
           let body = {};
           try { body = await request.json(); } catch { body = {}; }
           const pass = body.upstreamSecret === undefined ? undefined : String(body.upstreamSecret || '');
-          await accounts.updateUpstream(env.DB, account.id, String(body.upstreamUser || '').trim(), pass, env.SESSION_SECRET, new Date().toISOString());
+          const up = await accounts.updateUpstream(env.DB, account.id, String(body.upstreamUser || '').trim(), pass, env.SESSION_SECRET, new Date().toISOString());
+          if (!up.ok) return json({ ok: false, error: up.error, message: up.message }, 400);
           return json({ ok: true });
         }
 

@@ -20,10 +20,11 @@ const SECRET = 'unit-test-secret';
 /** 多账号假上游：登录时记住 userName，之后按该 userName 返回各自的成绩单 */
 function makeMultiUpstream() {
   const bySid = new Map();
+  // 现在上游账号必须是 11 位手机号，假上游按手机号分组
   const examsByUser = {
-    u1: [{ examId: 101, examTypeId: 1, subjectName: '语文', studentScore: 88 }],
-    u2: [{ examId: 101, examTypeId: 1, subjectName: '语文', studentScore: 55 }],
-    u3: [{ examId: 101, examTypeId: 1, subjectName: '语文', studentScore: 70 }],
+    '13800000001': [{ examId: 101, examTypeId: 1, subjectName: '语文', studentScore: 88 }],
+    '13800000002': [{ examId: 101, examTypeId: 1, subjectName: '语文', studentScore: 55 }],
+    '13800000003': [{ examId: 101, examTypeId: 1, subjectName: '语文', studentScore: 70 }],
   };
   let n = 0;
   function respond(obj, sc) {
@@ -103,9 +104,9 @@ test('8 个账号各自注册与登录，互不影响', async (t) => {
   const env = makeEnv(db);
   t.after(() => { globalThis.fetch = realFetch; db.close(); });
 
-  // 登录名必须 ≥3 位；上游账号仍用 u1..u3（假上游只认这三个）
+  // 登录名必须 ≥3 位；上游账号必须是 11 位手机号（假上游只认前三个）
   const names = ['user1', 'user2', 'user3', 'user4', 'user5', 'user6', 'user7', 'user8'];
-  const upstreamOf = (n) => 'u' + n.slice(4);
+  const upstreamOf = (n) => '138000000' + String(n.slice(4)).padStart(2, '0');
   const cookies = [];
   for (const n of names) {
     const r = await reg(env, n, 'pass12345', upstreamOf(n));
@@ -150,16 +151,20 @@ test('账号异常：重名 409、弱口令 400、越权/未登录 401、无找�
   const env = makeEnv(db);
   t.after(() => { globalThis.fetch = realFetch; db.close(); });
 
-  assert.equal((await reg(env, 'dup', 'pass12345', 'u1')).status, 201);
-  const dup = await reg(env, 'dup', 'pass12345', 'u1');
+  assert.equal((await reg(env, 'dup', 'pass12345', '13800000001')).status, 201);
+  const dup = await reg(env, 'dup', 'pass12345', '13800000001');
   assert.equal(dup.status, 409, '重名必须拒绝而不是覆盖');
   assert.equal((await dup.json()).error, 'duplicate');
 
-  const weak = await reg(env, 'weakuser', 'abc', 'u1');
+  const badPhone = await reg(env, 'phoneuser', 'pass12345', '1380000');
+  assert.equal(badPhone.status, 400, '手机号位数不对必须拒绝');
+  assert.equal((await badPhone.json()).error, 'bad_phone');
+
+  const weak = await reg(env, 'weakuser', 'abc', '13800000001');
   assert.equal(weak.status, 400);
   assert.equal((await weak.json()).error, 'weak_password');
 
-  const bad = await reg(env, 'bad user', 'pass12345', 'u1');
+  const bad = await reg(env, 'bad user', 'pass12345', '13800000001');
   assert.equal(bad.status, 400, '非法账号名必须拒绝');
 
   // 未登录访问

@@ -7,6 +7,7 @@
     <button id="btnPoll" class="primary">立即检查</button>
     <button id="btnRelogin" class="ghost">重新登录上游</button>
     <button id="btnDiag" class="ghost">诊断</button>
+    <a href="/account" class="ghost" style="display:inline-block;text-decoration:none;line-height:1.6;padding:6px 12px">账号设置</a>
     <button id="btnLogout" class="ghost danger">退出</button>
   </header>
 

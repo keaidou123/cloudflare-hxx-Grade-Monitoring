@@ -181,7 +181,7 @@ test('管理界面：密码保护、no-store、未授权 401', async (t) => {
   const created = await worker.fetch(new Request('https://w.example.com/register', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'cf-connecting-ip': '9.9.9.0' },
-    body: JSON.stringify({ username: 'tester', password: 'pass12345', upstreamUser: 'u', upstreamSecret: 'p' }),
+    body: JSON.stringify({ username: 'tester', password: 'pass12345', upstreamUser: '13800000000', upstreamSecret: 'p' }),
   }), env, {});
   assert.equal(created.status, 201, '注册应成功');
 

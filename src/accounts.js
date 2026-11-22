@@ -52,6 +52,18 @@ export function usernameProblem(username) {
   return '';
 }
 
+// 中国大陆手机号：11 位，1 开头，第二位 3-9（虚拟运营商 16x/17x 也在这个范围内）
+const PHONE_RE = /^1[3-9]\d{9}$/;
+
+export function phoneProblem(phone) {
+  const p = String(phone == null ? '' : phone).replace(/[\s-]/g, '');
+  if (!p) return '慧学星账号（手机号）不能为空';
+  if (!/^\d+$/.test(p)) return '慧学星账号只能是数字';
+  if (p.length !== 11) return '慧学星账号必须是 11 位手机号（现在是 ' + p.length + ' 位）';
+  if (!PHONE_RE.test(p)) return '手机号格式不对：应是 1 开头的 11 位数字';
+  return '';
+}
+
 export function passwordProblem(password) {
   const p = String(password || '');
   if (!p) return '密码不能为空';
@@ -132,10 +144,12 @@ export async function listAccounts(db) {
  */
 export async function createAccount(db, { username, password, upstreamUser, upstreamSecret, sessionSecret }, nowIso) {
   const name = String(username || '').trim();
-  const up = usernameProblem(name);
-  if (up) return { ok: false, error: 'bad_username', message: up };
+  const badName = usernameProblem(name);
+  if (badName) return { ok: false, error: 'bad_username', message: badName };
   const pp = passwordProblem(password);
   if (pp) return { ok: false, error: 'weak_password', message: pp };
+  const up = phoneProblem(upstreamUser);
+  if (up) return { ok: false, error: 'bad_phone', message: up };
   if ((await countAccounts(db)) >= MAX_ACCOUNTS) return { ok: false, error: 'too_many', message: '账号数量已达上限（' + MAX_ACCOUNTS + '）' };
   const exists = await findAccountByUsername(db, name);
   if (exists) return { ok: false, error: 'duplicate', message: '该账号名已被占用，请换一个' };
@@ -175,6 +189,8 @@ export async function changePassword(db, id, password, nowIso) {
 }
 
 export async function updateUpstream(db, id, upstreamUser, upstreamSecret, sessionSecret, nowIso) {
+  const badPhone = phoneProblem(upstreamUser);
+  if (badPhone) return { ok: false, error: 'bad_phone', message: badPhone };
   const seal = upstreamSecret === undefined || upstreamSecret === null ? undefined : await sealSecret(upstreamSecret, sessionSecret);
   if (seal === undefined) {
     await db.prepare('UPDATE account SET upstream_user = ?, updated_at = ? WHERE id = ?').bind(upstreamUser || null, nowIso, Number(id)).run();
