@@ -20,7 +20,7 @@ const accountsBlock = namespaceBlock('accounts.js', 'accounts');
 
 // 顺序无关（模块间只通过函数调用互相关联），但**必须列全**：
 // 漏一个模块，单文件产物会在运行时才报 "xxx is not defined"（多文件版本却是好的）。
-const ORDER = ['diff.js', 'format.js', 'auth.js', 'hxxai.js', 'schema.js', 'scope.js', 'pages.js', 'adminHtml.js'];
+const ORDER = ['diff.js', 'format.js', 'auth.js', 'hxxai.js', 'schema.js', 'scope.js', 'pages.js', 'notice.js', 'adminHtml.js'];
 const SPECIAL = ['index.js', 'store.js', 'accounts.js'];
 const present = readdirSync(new URL('../src/', import.meta.url)).filter((f) => f.endsWith('.js'));
 const missing = present.filter((f) => !ORDER.includes(f) && !SPECIAL.includes(f));

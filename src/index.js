@@ -13,6 +13,7 @@ import { scopedStore } from './scope.js';
 import { ensureSchema } from './schema.js';
 import * as accounts from './accounts.js';
 import { REGISTER_HTML, ACCOUNT_HTML } from './pages.js';
+import { NOTICE_HTML } from './notice.js';
 import { ADMIN_HTML } from './adminHtml.js';
 
 const NO_STORE = {
@@ -568,6 +569,13 @@ async function ensureDb(env) {
   }
 }
 
+// 首次访问强制阅读的声明：注入到三个页面（/admin、/register、/account）
+function withNotice(page) {
+  const htmlText = String(page);
+  if (htmlText.includes('id="hxNotice"')) return htmlText;
+  return htmlText.includes('</body>') ? htmlText.replace('</body>', NOTICE_HTML + '</body>') : htmlText + NOTICE_HTML;
+}
+
 async function handleLogin(request, env) {
   if (!env.SESSION_SECRET || !env.DB) {
     return json({ ok: false, error: 'server_not_configured', message: '未设置 SESSION_SECRET 或未绑定 D1' }, 500);
@@ -618,7 +626,7 @@ export default {
       }
       await ensureDb(env);
 
-      if (path === '/register' && request.method === 'GET') return html(REGISTER_HTML);
+      if (path === '/register' && request.method === 'GET') return html(withNotice(REGISTER_HTML));
       if (path === '/register' && request.method === 'POST') {
         let body = {};
         try { body = await request.json(); } catch { body = {}; }
@@ -648,10 +656,10 @@ export default {
       if (path === '/account' && request.method === 'GET') {
         const sess0 = await requireSession(request, env.SESSION_SECRET);
         if (!sess0.ok) return new Response(null, { status: 302, headers: { location: '/admin' } });
-        return html(ACCOUNT_HTML);
+        return html(withNotice(ACCOUNT_HTML));
       }
 
-      if (path === '/admin') return html(ADMIN_HTML);
+      if (path === '/admin') return html(withNotice(ADMIN_HTML));
 
       if (path === '/admin/api/login' && request.method === 'POST') return await handleLogin(request, env);
       if (path === '/admin/api/logout' && request.method === 'POST') return json({ ok: true }, 200, { 'set-cookie': clearSessionCookie() });
