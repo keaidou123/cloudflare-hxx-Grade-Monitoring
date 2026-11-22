@@ -1,0 +1,84 @@
+<div class="wrap">
+  <header class="reveal reveal-1">
+    <div class="brand">慧学星 · 成绩单监控</div>
+    <div class="spacer"></div>
+    <span id="pill" class="pill">加载中</span>
+    <button id="btnRefresh" class="ghost">刷新</button>
+    <button id="btnPoll" class="primary">立即检查</button>
+    <button id="btnRelogin" class="ghost">重新登录上游</button>
+    <button id="btnDiag" class="ghost">诊断</button>
+    <button id="btnLogout" class="ghost danger">退出</button>
+  </header>
+
+  <div id="banner" class="banner hidden"></div>
+
+  <section class="hero reveal reveal-2">
+    <div>
+      <div class="hero-kicker">LATEST EXAM</div>
+      <h1 class="hero-title" id="heroTitle">—</h1>
+      <div class="hero-meta" id="heroMeta">—</div>
+    </div>
+    <div class="hero-score"><span id="heroScore">—</span><small id="heroFull"></small></div>
+    <div class="hero-ring" id="heroRing"></div>
+  </section>
+
+  <section class="cards reveal reveal-3">
+    <div class="card"><div class="k">已记录考试</div><div class="v" id="cSnap">-</div><div class="s">最近一次抓取到的全部成绩单</div></div>
+    <div class="card"><div class="k">近 24h 变化</div><div class="v" id="cEvents">-</div><div class="s">新发布 + 分数变化</div></div>
+    <div class="card"><div class="k">观察到的检查间隔</div><div class="v" id="cInterval">-</div><div class="s">由最近运行记录推算（分钟）</div></div>
+    <div class="card"><div class="k">上游会话</div><div class="v small" id="cSession">-</div><div class="s" id="cSessionNote">-</div></div>
+  </section>
+
+  <section class="panel reveal reveal-4">
+    <h2>最新成绩单</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>考试</th><th class="c">类型</th><th class="num">分数</th><th>考试日期</th><th>最近变化</th><th class="c">明细</th></tr></thead>
+        <tbody id="tbSnap"></tbody>
+      </table>
+    </div>
+    <div class="detail-hint">「多科」行点 <b>明细</b> 展开各科分数；单科行只有一科，右侧显示 —</div>
+    <div class="empty hidden" id="snapEmpty">还没有数据。定时任务第一次运行后会写入基线。</div>
+  </section>
+
+  <section class="panel reveal reveal-4">
+    <h2>发布 / 变化记录</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>时间</th><th>类型</th><th>考试</th><th>分数变化</th></tr></thead>
+        <tbody id="tbEvents"></tbody>
+      </table>
+    </div>
+    <div class="empty hidden" id="eventsEmpty">暂无事件。首次运行只建立基线，之后的发布与变化才会记录。</div>
+  </section>
+
+  <section class="panel reveal reveal-5">
+    <h2>运行日志（最近 20 次）</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>开始时间</th><th>状态</th><th class="num">耗时</th><th class="num">条目</th><th class="num">事件</th><th>说明</th></tr></thead>
+        <tbody id="tbRuns"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel hidden" id="diagPanel">
+    <h2>诊断（会真实登录一次上游，不覆盖已存会话）</h2>
+    <pre id="diagOut" class="diag">-</pre>
+  </section>
+
+  <footer>时间按 Asia/Shanghai 显示，数据库内以 UTC 存储。考试名称/日期由字段候选规则解析，若显示不对请点「诊断」把 examList 样例发我。</footer>
+
+  <div id="login" class="login hidden">
+    <div class="loginbox">
+      <h1>登录</h1>
+      <p class="muted">使用你自己的账号名与密码登录。</p>
+      <input id="uname" type="text" placeholder="账号名" autocomplete="username" />
+      <input id="pw" type="password" placeholder="密码" autocomplete="current-password" />
+      <button id="btnLogin" class="primary full">登录</button>
+      <a href="/register" class="primary full" style="display:block;text-align:center;text-decoration:none;padding:11px 10px;margin-top:12px;line-height:20px;border-radius:8px;background:#12325c;border:1px solid #2f81f7;color:#a9d3ff;font-weight:600;font-size:14px">还没有账号？点这里注册 →</a>
+      <div id="loginErr" class="err"></div>
+      <p class="muted" style="margin-top:12px;font-size:12px">本网站登录系统较为简易，无找回方案，请牢记密码。</p>
+    </div>
+  </div>
+</div>
