@@ -1,7 +1,7 @@
 // @ts-nocheck —— 这是构建产物，给 Cloudflare 编辑器的类型推断关掉，避免无意义的红字
 /* 慧学星成绩单监控 —— 单文件构建产物（由 _build/bundle.mjs 生成，勿手改）
    源文件在 src/，改了源文件请重新运行：node _build/bundle.mjs 
-   生成时间: 2026-11-22T05:46:42.505Z */
+   生成时间: 2026-11-22T05:54:25.869Z */
 
 // ---- diff.js ----
 /**
@@ -2461,12 +2461,19 @@ async function buildDiagnose(env) {
 /* ============================ 登录 ============================ */
 
 // 每个 isolate 只做一次建表/补列检查；失败也不抛，避免把请求打死
-let schemaReady = null;
-function ensureDb(env) {
-  if (!schemaReady) {
-    schemaReady = ensureSchema(env.DB).catch((e) => ({ created: 0, altered: [], error: String((e && e.message) || e) }));
+// 注意：Worker 不允许把 promise 存到模块级跨请求复用（会报
+// "This promise was created by a request that has since ended"）。
+// 因此这里只缓存「上次成功检查的时间戳」，每次请求自己创建并 await 自己的 promise。
+const SCHEMA_CHECK_TTL_MS = 10 * 60 * 1000;
+let schemaCheckedAt = 0;
+async function ensureDb(env) {
+  if (Date.now() - schemaCheckedAt < SCHEMA_CHECK_TTL_MS) return;
+  try {
+    await ensureSchema(env.DB);
+    schemaCheckedAt = Date.now();
+  } catch {
+    /* 建表失败不阻塞请求；下次请求再试 */
   }
-  return schemaReady;
 }
 
 async function handleLogin(request, env) {
