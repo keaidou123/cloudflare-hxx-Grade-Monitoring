@@ -1,7 +1,7 @@
 // @ts-nocheck —— 这是构建产物，给 Cloudflare 编辑器的类型推断关掉，避免无意义的红字
 /* 慧学星成绩单监控 —— 单文件构建产物（由 _build/bundle.mjs 生成，勿手改）
    源文件在 src/，改了源文件请重新运行：node _build/bundle.mjs 
-   生成时间: 2026-11-22T13:55:07.351Z */
+   生成时间: 2026-11-22T14:03:12.753Z */
 
 // ---- diff.js ----
 /**
@@ -1440,7 +1440,16 @@ const ACCOUNT_HTML = "<!doctype html>\n<html lang=\"zh-CN\"><head><meta charset=
 const NOTICE_KEY = 'hxxai_notice_v1';
 
 const NOTICE_HTML = `<style>
-#hxNotice{position:fixed;inset:0;z-index:99999;background:rgba(3,5,8,.88);display:flex;align-items:center;justify-content:center;padding:20px;font:14px/1.75 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+/* 关键：id 选择器的 display:flex 会压过 [hidden] 的 display:none（浏览器默认样式优先级更低），
+   所以必须显式把 [hidden] 规则写出来，否则点了确认也不消失、老用户还会每次都看到 */
+#hxNotice[hidden]{display:none!important}
+#hxNotice{position:fixed;inset:0;z-index:99999;background:rgba(3,5,8,.88);display:flex;align-items:center;justify-content:center;padding:20px;font:14px/1.75 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;opacity:0;transition:opacity .22s ease}
+#hxNotice.hx-show{opacity:1}
+#hxNotice.hx-hide{opacity:0}
+#hxNotice .box{transform:translateY(14px) scale(.975);opacity:0;transition:transform .3s cubic-bezier(.22,1,.36,1),opacity .3s ease}
+#hxNotice.hx-show .box{transform:none;opacity:1}
+#hxNotice.hx-hide .box{transform:translateY(10px) scale(.98);opacity:0}
+@media (prefers-reduced-motion:reduce){#hxNotice,#hxNotice .box{transition:none}}
 #hxNotice .box{width:100%;max-width:620px;max-height:86vh;display:flex;flex-direction:column;background:#12171e;border:1px solid #2a3441;border-radius:10px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.6)}
 #hxNotice .hd{padding:16px 20px;border-bottom:1px solid #232a33;display:flex;align-items:baseline;gap:10px}
 #hxNotice .hd b{font-size:16px;color:#e6edf3}
@@ -1484,6 +1493,7 @@ const NOTICE_HTML = `<style>
   if (!box || !body || !btn) return;
   box.hidden = false;
   document.documentElement.style.overflow = 'hidden';
+  requestAnimationFrame(function () { box.classList.add('hx-show'); });
   var need = 8;            // 最短阅读秒数
   var left = need;
   var scrolled = body.scrollHeight <= body.clientHeight + 4;   // 内容不满一屏视为已读完
@@ -1507,9 +1517,17 @@ const NOTICE_HTML = `<style>
     refresh();
   }, 1000);
   btn.addEventListener('click', function () {
+    if (btn.disabled || box.getAttribute('data-closing') === '1') return;   // 防连点
+    box.setAttribute('data-closing', '1');
     try { localStorage.setItem('hxxai_notice_v1', '1'); } catch (e) {}
-    box.hidden = true;
+    box.classList.remove('hx-show');
+    box.classList.add('hx-hide');                 // 先播淡出+下移动画
     document.documentElement.style.overflow = '';
+    setTimeout(function () {                      // 动画结束再真正移除
+      box.hidden = true;
+      box.classList.remove('hx-hide');
+      box.removeAttribute('data-closing');
+    }, 240);
   });
 })();
 </script>`;

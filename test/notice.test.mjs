@@ -21,3 +21,10 @@ test('三个页面都注入使用声明，且只注入一份', async (t) => {
     assert.ok(htmlText.indexOf('id="hxNotice"') < htmlText.indexOf('</body>'), p + ' 声明应在 body 内');
   }
 });
+
+test('声明弹窗：必须有 [hidden] 的显式规则，否则点确认不会消失（历史 bug）', async () => {
+  const { NOTICE_HTML } = await import('../src/notice.js');
+  assert.ok(NOTICE_HTML.includes('#hxNotice[hidden]{display:none!important}'), '缺少 [hidden] 显式规则');
+  assert.ok(NOTICE_HTML.includes('hx-show') && NOTICE_HTML.includes('hx-hide'), '缺少进出场动画 class');
+  assert.ok(NOTICE_HTML.includes('setTimeout') && NOTICE_HTML.includes('box.hidden = true'), '点击后必须真正隐藏');
+});
